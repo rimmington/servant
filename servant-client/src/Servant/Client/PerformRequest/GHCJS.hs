@@ -27,6 +27,7 @@ import           GHCJS.Foreign.Callback
 import           GHCJS.Prim
 import           Network.HTTP.Types
 
+import           JavaScript.FormData (newFormData, unFormData, appendFormData)
 import           Servant.Client.PerformRequest.GHCJS.Types
 import           Servant.Client.ServantError (ServantError (ConnectionError))
 
@@ -69,7 +70,7 @@ performXhr xhr request = do
 
         openXhr xhr (cs $ method request) (toUrl request) True
         setHeaders xhr (requestHeaders request)
-        sendXhr xhr (toBody request)
+        sendXhr xhr (requestBody request)
         takeMVar waiter
 
         freeStablePtr s
@@ -117,19 +118,18 @@ setHeaders xhr headers = forM_ headers $ \ (key, value) ->
 foreign import javascript unsafe "$1.setRequestHeader($2, $3)"
   js_setRequestHeader :: JSXMLHttpRequest -> JSVal -> JSVal -> IO ()
 
-sendXhr :: JSXMLHttpRequest -> Maybe String -> IO ()
-sendXhr xhr Nothing = js_sendXhr xhr
-sendXhr xhr (Just body) =
-  js_sendXhrWithBody xhr (toJSString body)
+sendXhr :: JSXMLHttpRequest -> RequestBody -> IO ()
+sendXhr xhr RequestBodyEmpty      = js_sendXhr xhr
+sendXhr xhr (RequestBodyLBS body) =
+  js_sendXhrWithBody xhr . toJSString $ cs body
+sendXhr xhr (RequestBodyFormProps ps) = do
+    fd <- newFormData
+    mapM_ (appendFormData fd) ps
+    js_sendXhrWithBody xhr $ unFormData fd
 foreign import javascript unsafe "$1.send()"
   js_sendXhr :: JSXMLHttpRequest -> IO ()
 foreign import javascript unsafe "$1.send($2)"
   js_sendXhrWithBody :: JSXMLHttpRequest -> JSVal -> IO ()
-
-toBody :: Request -> Maybe String
-toBody request = case requestBody request of
-  RequestBodyLBS "" -> Nothing
-  RequestBodyLBS x -> Just $ cs x
 
 -- * inspecting the xhr response
 

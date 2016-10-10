@@ -12,6 +12,7 @@ import           Network.HTTP.Types (Header, Query, Status, Method, renderQuery)
 import           Network.URI (URI (URI), URIAuth (URIAuth), parseURI, escapeURIString, isAllowedInURI)
 import           Text.Read (readMaybe)
 
+import           JavaScript.FormData (FormDataProp)
 import           Servant.Common.BaseUrl (BaseUrl)
 
 data ClientEnv = ClientEnv BaseUrl
@@ -27,7 +28,11 @@ data Request = Request { method :: Method
                        , path :: BS.ByteString
                        , queryString :: BS.ByteString
                        , requestBody :: RequestBody }
-data RequestBody = RequestBodyLBS LBS.ByteString
+
+data RequestBody = RequestBodyEmpty
+                 | RequestBodyLBS LBS.ByteString
+                 | RequestBodyFormProps [FormDataProp]
+
 data Response a = Response { responseStatus :: Status
                            , responseHeaders :: [Header]
                            , responseBody :: a }
@@ -36,7 +41,7 @@ data InvalidUrlException = InvalidUrlException String deriving (Show, Typeable)
 instance Exception InvalidUrlException
 
 emptyRequestBody :: RequestBody
-emptyRequestBody = RequestBodyLBS ""
+emptyRequestBody = RequestBodyEmpty
 
 setQueryString :: Query -> Request -> Request
 setQueryString s r = r { queryString = renderQuery True s }
@@ -80,4 +85,5 @@ setRequestBody :: RequestBody -> Request -> Request
 setRequestBody b r = r { requestBody = b }
 
 byteBody :: LBS.ByteString -> RequestBody
-byteBody = RequestBodyLBS
+byteBody "" = RequestBodyEmpty
+byteBody b  = RequestBodyLBS b

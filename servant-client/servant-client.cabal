@@ -38,6 +38,9 @@ library
     Servant.Client.PerformRequest
     Servant.Client.ServantError
   if impl(ghcjs)
+    exposed-modules:
+      JavaScript.FormData
+      Servant.Client.GHCJS
     other-modules:
       Servant.Client.PerformRequest.GHCJS
       Servant.Client.PerformRequest.GHCJS.Types
