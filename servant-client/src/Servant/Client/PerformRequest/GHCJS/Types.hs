@@ -5,12 +5,10 @@ module Servant.Client.PerformRequest.GHCJS.Types where
 import           Control.Monad.Catch (MonadThrow, throwM)
 import           Control.Exception (Exception)
 import           Data.Bool (bool)
-import           Data.String.Conversions (cs)
 import           Data.Typeable (Typeable)
 import qualified Data.ByteString.Char8 as BS
 import qualified Data.ByteString.Lazy as LBS
-import           Network.HTTP.Media (MediaType)
-import           Network.HTTP.Types (Header, Query, Status, Method, renderQuery, hContentType)
+import           Network.HTTP.Types (Header, Query, Status, Method, renderQuery)
 import           Network.URI (URI (URI), URIAuth (URIAuth), parseURI, escapeURIString, isAllowedInURI)
 import           Text.Read (readMaybe)
 
@@ -78,7 +76,8 @@ setRequestHeaders hs r = r { requestHeaders = hs }
 setMethod :: Method -> Request -> Request
 setMethod m r = r { method = m }
 
-setRequestBody :: Maybe (LBS.ByteString, MediaType) -> Request -> Request
-setRequestBody Nothing        r = r
-setRequestBody (Just (b, t)) r = r { requestBody = RequestBodyLBS b
-                                   , requestHeaders = requestHeaders r ++ [(hContentType, cs . show $ t)] }
+setRequestBody :: RequestBody -> Request -> Request
+setRequestBody b r = r { requestBody = b }
+
+byteBody :: LBS.ByteString -> RequestBody
+byteBody = RequestBodyLBS

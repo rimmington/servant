@@ -8,6 +8,7 @@ module Servant.Client.PerformRequest.GHC (
   ServantError(..),
   ClientEnv (ClientEnv), baseUrl,
   Request, requestHeaders, setRequestHeaders, setMethod, setRequestBody, setQueryString,
+  RequestBody, emptyRequestBody, byteBody,
   Response, responseStatus, responseBody, responseHeaders,
   parseRequest,
   performHttpRequest,
@@ -18,10 +19,8 @@ import           Control.Applicative
 #endif
 import           Control.Exception
 import qualified Data.ByteString.Lazy as LBS
-import           Data.String.Conversions (cs)
 import           Network.HTTP.Client
-import           Network.HTTP.Media (MediaType)
-import           Network.HTTP.Types (Header, Method, hContentType)
+import           Network.HTTP.Types (Header, Method)
 
 import           Servant.Client.ServantError (ServantError (ConnectionError))
 import           Servant.Common.BaseUrl (BaseUrl)
@@ -54,15 +53,17 @@ catchConnectionError action =
 setRequestHeaders :: [Header] -> Request -> Request
 setRequestHeaders hs r = r { requestHeaders = hs }
 
-setRequestBody :: Maybe (LBS.ByteString, MediaType) -> Request -> Request
-setRequestBody body r = case body of
-    Nothing    -> r
-    Just (b,t) -> r { requestBody = RequestBodyLBS b
-                    , requestHeaders = requestHeaders r
-                                    ++ [(hContentType, cs . show $ t)] }
+setRequestBody :: RequestBody -> Request -> Request
+setRequestBody body r = r { requestBody = body }
 
 setMethod :: Method -> Request -> Request
 setMethod m r = r { method = m }
 
 baseUrl :: ClientEnv -> BaseUrl
 baseUrl (ClientEnv _ b) = b
+
+emptyRequestBody :: RequestBody
+emptyRequestBody = RequestBodyLBS ""
+
+byteBody :: LBS.ByteString -> RequestBody
+byteBody = RequestBodyLBS

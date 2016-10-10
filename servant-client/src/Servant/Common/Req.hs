@@ -54,13 +54,13 @@ import Web.HttpApiData
 data Req = Req
   { reqPath   :: String
   , qs        :: QueryText
-  , reqBody   :: Maybe (ByteString, MediaType)
+  , reqBody   :: RequestBody
   , reqAccept :: [MediaType]
   , headers   :: [(String, Text)]
   }
 
 defReq :: Req
-defReq = Req "" [] Nothing [] []
+defReq = Req "" [] emptyRequestBody [] []
 
 appendToPath :: String -> Req -> Req
 appendToPath p req =
@@ -80,7 +80,8 @@ addHeader name val req = req { headers = headers req
                              }
 
 setRQBody :: ByteString -> MediaType -> Req -> Req
-setRQBody b t r = r { reqBody = Just (b, t) }
+setRQBody b t r = r { reqBody = byteBody b
+                    , headers = headers r ++ [("Content-Type", cs . show $ t)] }
 
 reqToRequest :: (Functor m, MonadThrow m) => Req -> BaseUrl -> m Request
 reqToRequest req (BaseUrl reqScheme reqHost reqPort path) =
