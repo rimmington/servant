@@ -36,7 +36,6 @@ import           Data.Proxy
 import           Data.String.Conversions
 import           Data.Text                  (unpack)
 import           GHC.TypeLits
-import           Network.HTTP.Client        (Response)
 import           Network.HTTP.Media
 import qualified Network.HTTP.Types         as H
 import qualified Network.HTTP.Types.Header  as HTTP
@@ -45,7 +44,6 @@ import           Servant.Client.Experimental.Auth
 import           Servant.Common.BaseUrl
 import           Servant.Common.BasicAuth
 import           Servant.Common.Req
-import           Servant.Client.PerformRequest (ServantError(..))
 
 -- * Accessing APIs as a Client
 
@@ -178,7 +176,7 @@ instance OVERLAPPING_
     = ClientM (Headers ls a)
   clientWithRoute Proxy req = do
     let method = reflectMethod (Proxy :: Proxy method)
-    (hdrs, resp) <- performRequestCT (Proxy :: Proxy ct) method req 
+    (hdrs, resp) <- performRequestCT (Proxy :: Proxy ct) method req
     return $ Headers { getResponse = resp
                      , getHeadersHList = buildHeadersTo hdrs
                      }
@@ -190,7 +188,7 @@ instance OVERLAPPING_
     = ClientM (Headers ls NoContent)
   clientWithRoute Proxy req = do
     let method = reflectMethod (Proxy :: Proxy method)
-    hdrs <- performRequestNoBody method req 
+    hdrs <- performRequestNoBody method req
     return $ Headers { getResponse = NoContent
                      , getHeadersHList = buildHeadersTo hdrs
                      }

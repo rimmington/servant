@@ -36,10 +36,11 @@ library
     Servant.Common.Req
   other-modules:
     Servant.Client.PerformRequest
-    Servant.Client.PerformRequest.Base
+    Servant.Client.ServantError
   if impl(ghcjs)
     other-modules:
       Servant.Client.PerformRequest.GHCJS
+      Servant.Client.PerformRequest.GHCJS.Types
   else
     other-modules:
       Servant.Client.PerformRequest.GHC
@@ -51,8 +52,6 @@ library
     , bytestring            >= 0.10     && < 0.11
     , exceptions            >= 0.8      && < 0.9
     , http-api-data         >= 0.3      && < 0.4
-    , http-client           >= 0.4.18.1 && < 0.6
-    , http-client-tls       >= 0.2.2    && < 0.4
     , http-media            >= 0.6.2    && < 0.7
     , http-types            >= 0.8.6    && < 0.10
     , network-uri           >= 2.6      && < 2.7
@@ -68,6 +67,10 @@ library
         ghcjs-base
       , ghcjs-prim
       , case-insensitive
+  else
+    build-depends:
+        http-client           >= 0.4.18.1 && < 0.6
+      , http-client-tls       >= 0.2.2    && < 0.4
   hs-source-dirs: src
   default-language: Haskell2010
   ghc-options: -Wall

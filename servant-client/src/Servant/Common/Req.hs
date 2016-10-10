@@ -9,7 +9,12 @@
 {-# OPTIONS_GHC -fno-warn-redundant-constraints #-}
 #endif
 
-module Servant.Common.Req where
+module Servant.Common.Req (
+  module Servant.Common.Req,
+  ClientEnv (ClientEnv),
+  Response,
+  ServantError (..)
+  ) where
 
 #if !MIN_VERSION_base(4,8,0)
 import Control.Applicative
@@ -35,17 +40,16 @@ import Data.String.Conversions
 import Data.Proxy
 import Data.Text (Text)
 import Data.Text.Encoding
-import Network.HTTP.Client hiding (Proxy, path)
 import Network.HTTP.Media
 import Network.HTTP.Types
 import qualified Network.HTTP.Types.Header as HTTP
 import Network.URI hiding (path)
 import Servant.API.ContentTypes
 import Servant.Client.PerformRequest
+import Servant.Client.ServantError (ServantError)
+import qualified Servant.Client.ServantError as SE
 import Servant.Common.BaseUrl
 import Web.HttpApiData
-
-import qualified Network.HTTP.Client as Client
 
 data Req = Req
   { reqPath   :: String
@@ -76,7 +80,7 @@ addHeader name val req = req { headers = headers req
                              }
 
 setRQBody :: ByteString -> MediaType -> Req -> Req
-setRQBody b t req = req { reqBody = Just (b, t) }
+setRQBody b t r = r { reqBody = Just (b, t) }
 
 reqToRequest :: (Functor m, MonadThrow m) => Req -> BaseUrl -> m Request
 reqToRequest req (BaseUrl reqScheme reqHost reqPort path) =
@@ -93,45 +97,19 @@ reqToRequest req (BaseUrl reqScheme reqHost reqPort path) =
                              , uriPath = path ++ reqPath req
                              }
 
-        setrqb r = case reqBody req of
-                     Nothing -> r
-                     Just (b,t) -> r { requestBody = RequestBodyLBS b
-                                     , requestHeaders = requestHeaders r
-                                                     ++ [(hContentType, cs . show $ t)] }
+        setrqb = setRequestBody $ reqBody req
         setQS = setQueryString $ queryTextToQuery (qs req)
-        setheaders r = r { requestHeaders = requestHeaders r
-                                         <> fmap toProperHeader (headers req) }
-        setAccept r = r { requestHeaders = filter ((/= "Accept") . fst) (requestHeaders r)
+        setheaders r = setRequestHeaders (requestHeaders r <> fmap toProperHeader (headers req)) r
+        setAccept r = setRequestHeaders (filter ((/= "Accept") . fst) (requestHeaders r)
                                         <> [("Accept", renderHeader $ reqAccept req)
-                                              | not . null . reqAccept $ req] }
+                                              | not . null . reqAccept $ req]) r
         toProperHeader (name, val) =
           (fromString name, encodeUtf8 val)
-
-#if !MIN_VERSION_http_client(0,4,30)
--- 'parseRequest' is introduced in http-client-0.4.30
--- it differs from 'parseUrl', by not throwing exceptions on non-2xx http statuses
---
--- See for implementations:
--- http://hackage.haskell.org/package/http-client-0.4.30/docs/src/Network-HTTP-Client-Request.html#parseRequest
--- http://hackage.haskell.org/package/http-client-0.5.0/docs/src/Network-HTTP-Client-Request.html#parseRequest
-parseRequest :: MonadThrow m => String -> m Request
-parseRequest url = liftM disableStatusCheck (parseUrl url)
-  where
-    disableStatusCheck req = req { checkStatus = \ _status _headers _cookies -> Nothing }
-#endif
-
 
 -- * performing requests
 
 displayHttpRequest :: Method -> String
 displayHttpRequest httpmethod = "HTTP " ++ cs httpmethod ++ " request"
-
-data ClientEnv
-  = ClientEnv
-  { manager :: Manager
-  , baseUrl :: BaseUrl
-  }
-
 
 -- | @ClientM@ is the monad in which client functions run. Contains the
 -- 'Manager' and 'BaseUrl' used for requests in the reader environment.
@@ -150,29 +128,29 @@ performRequest :: Method -> Req
                -> ClientM ( Int, ByteString, MediaType
                           , [HTTP.Header], Response ByteString)
 performRequest reqMethod req = do
-  m <- asks manager
+  clientEnv <- ask
   reqHost <- asks baseUrl
   partialRequest <- liftIO $ reqToRequest req reqHost
 
-  let request = partialRequest { Client.method = reqMethod }
+  let request = setMethod reqMethod partialRequest
 
-  eResponse <- liftIO $ performHttpRequest m request
+  eResponse <- liftIO $ performHttpRequest clientEnv request
   case eResponse of
     Left err ->
-      throwError . ConnectionError $ SomeException err
+      throwError . SE.ConnectionError $ SomeException err
 
     Right response -> do
-      let status = Client.responseStatus response
-          body = Client.responseBody response
-          hdrs = Client.responseHeaders response
+      let status = responseStatus response
+          body = responseBody response
+          hdrs = responseHeaders response
           status_code = statusCode status
-      ct <- case lookup "Content-Type" $ Client.responseHeaders response of
+      ct <- case lookup "Content-Type" $ responseHeaders response of
                  Nothing -> pure $ "application"//"octet-stream"
                  Just t -> case parseAccept t of
-                   Nothing -> throwError $ InvalidContentTypeHeader (cs t) body
+                   Nothing -> throwError $ SE.InvalidContentTypeHeader (cs t) body
                    Just t' -> pure t'
       unless (status_code >= 200 && status_code < 300) $
-        throwError $ FailureResponse status ct body
+        throwError $ SE.FailureResponse status ct body
       return (status_code, body, ct, hdrs, response)
 
 performRequestCT :: MimeUnrender ct result => Proxy ct -> Method -> Req
@@ -181,9 +159,9 @@ performRequestCT ct reqMethod req = do
   let acceptCT = contentType ct
   (_status, respBody, respCT, hdrs, _response) <-
     performRequest reqMethod (req { reqAccept = [acceptCT] })
-  unless (matches respCT (acceptCT)) $ throwError $ UnsupportedContentType respCT respBody
+  unless (matches respCT (acceptCT)) $ throwError $ SE.UnsupportedContentType respCT respBody
   case mimeUnrender ct respBody of
-    Left err -> throwError $ DecodeFailure err respCT respBody
+    Left err -> throwError $ SE.DecodeFailure err respCT respBody
     Right val -> return (hdrs, val)
 
 performRequestNoBody :: Method -> Req -> ClientM [HTTP.Header]

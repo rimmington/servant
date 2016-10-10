@@ -6,10 +6,12 @@
 module Servant.Client.PerformRequest.GHCJS (
   ServantError(..),
   performHttpRequest,
+  module Servant.Client.PerformRequest.GHCJS.Types,
 
   -- exported for testing
   parseHeaders,
   ) where
+
 
 import           Control.Arrow
 import           Control.Concurrent
@@ -23,16 +25,17 @@ import           Data.String.Conversions
 import           Foreign.StablePtr
 import           GHCJS.Foreign.Callback
 import           GHCJS.Prim
-import           Network.HTTP.Client
-import           Network.HTTP.Client.Internal as HttpClient
 import           Network.HTTP.Types
-import           Servant.Client.PerformRequest.Base
+
+import           Servant.Client.PerformRequest.GHCJS.Types
+import           Servant.Client.ServantError (ServantError (ConnectionError))
 
 newtype JSXMLHttpRequest = JSXMLHttpRequest JSVal
 
 newtype JSXMLHttpRequestClass = JSXMLHttpRequestClass JSVal
 
-performHttpRequest :: Manager -> Request -> IO (Either ServantError (Response LBS.ByteString))
+
+performHttpRequest :: ClientEnv -> Request -> IO (Either ServantError (Response LBS.ByteString))
 performHttpRequest _ request = do
   xhr <- initXhr
   performXhr xhr request
@@ -127,7 +130,6 @@ toBody :: Request -> Maybe String
 toBody request = case requestBody request of
   RequestBodyLBS "" -> Nothing
   RequestBodyLBS x -> Just $ cs x
-  _ -> error "servant-client only uses RequestBodyLBS"
 
 -- * inspecting the xhr response
 
@@ -143,12 +145,9 @@ toResponse xhr = do
       headers <- parseHeaders <$> getAllResponseHeaders xhr
       responseText <- cs <$> getResponseText xhr
       return $ Right $ Response {
-        HttpClient.responseStatus = mkStatus status statusText,
-        responseVersion = http11, -- this is made up
+        responseStatus = mkStatus status statusText,
         responseHeaders = headers,
-        HttpClient.responseBody = responseText,
-        responseCookieJar = mempty,
-        responseClose' = ResponseClose (return ())
+        responseBody = responseText
       }
 
 foreign import javascript unsafe "$1.status"

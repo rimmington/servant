@@ -1,6 +1,6 @@
 {-# LANGUAGE DeriveDataTypeable #-}
 
-module Servant.Client.PerformRequest.Base where
+module Servant.Client.ServantError where
 
 import           Control.Exception
 import           Data.ByteString.Lazy
